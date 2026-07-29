@@ -1,73 +1,63 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { router } from 'expo-router';
+import { ActivityIndicator, Animated, StyleSheet, Text, View } from 'react-native';
 
-import { Bar, Button, Card } from '@/components';
-import { brand, care } from '@/constants/colors';
-import { spacing } from '@/constants/spacing';
+import { brand } from '@/constants/colors';
 import { typography } from '@/constants/typography';
+import { ensureSession } from '@/lib/api/auth';
 
 /**
- * Geçici önizleme ekranı — tasarım sistemini (renk/tipografi/Button/
- * Card/Bar) gözle doğrulamak için. Gerçek ana ekran G2-6'da bunun
- * yerini alacak.
+ * Uygulama girişi. Burada ekranda görünür bir şey yaptırmıyoruz —
+ * sadece anonim oturumun (şimdilik mock) hazır olmasını bekleyip
+ * karşılama ekranına yönlendiriyoruz. İleride burada "zaten eşleşmiş
+ * mi, çocuğu var mı" gibi kontroller eklenip doğrudan ilgili ekrana
+ * yönlendirme yapılacak.
  */
-export default function HomeScreen() {
+export default function AppEntry() {
+  const fade = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(fade, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+
+    let isMounted = true;
+
+    ensureSession().then(() => {
+      if (isMounted) {
+        router.replace('/onboarding/welcome');
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [fade]);
+
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={styles.content}
-    >
-      <Text style={styles.title}>DuoBaby</Text>
-      <Text style={styles.subtitle}>Tasarım sistemi önizlemesi</Text>
-
-      <Card style={styles.card}>
-        <Text style={styles.cardTitle}>Miço</Text>
-        <View style={styles.bars}>
-          <Bar label="Açlık" value={72} color={care.hunger} />
-          <Bar label="Temizlik" value={45} color={care.cleanliness} />
-          <Bar label="Enerji" value={16} color={care.energy} />
-          <Bar label="Mutluluk" value={90} color={care.happiness} />
-        </View>
-      </Card>
-
-      <View style={styles.buttons}>
-        <Button label="Besle" onPress={() => {}} variant="primary" />
-        <Button label="Temizle" onPress={() => {}} variant="secondary" />
-        <Button label="Vazgeç" onPress={() => {}} variant="ghost" />
-      </View>
-    </ScrollView>
+    <View style={styles.container}>
+      <Animated.Text style={[styles.title, { opacity: fade }]}>
+        DuoBaby
+      </Animated.Text>
+      <ActivityIndicator color={brand.forest} style={styles.spinner} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
+  container: {
     flex: 1,
     backgroundColor: brand.paper,
-  },
-  content: {
-    padding: spacing.xl,
-    gap: spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     ...typography.display,
     color: brand.ink,
   },
-  subtitle: {
-    ...typography.body,
-    color: brand.inkMuted,
-    marginTop: -spacing.sm,
-  },
-  card: {
-    marginTop: spacing.md,
-  },
-  cardTitle: {
-    ...typography.title,
-    color: brand.ink,
-    marginBottom: spacing.lg,
-  },
-  bars: {
-    gap: spacing.md,
-  },
-  buttons: {
-    gap: spacing.md,
+  spinner: {
+    marginTop: 24,
   },
 });
