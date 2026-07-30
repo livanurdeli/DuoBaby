@@ -1,30 +1,21 @@
-import { router } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Button } from '@/components';
 import { brand } from '@/constants/colors';
 import { spacing } from '@/constants/spacing';
 import { typography } from '@/constants/typography';
 
 /**
- * Eşleşme tamamlandığında gösterilen ekran. Buradan çocuk oluşturma
- * akışına (G2-5) geçiliyor.
+ * Çocuk oluşturma akışının sonu. G2-6 (ana ekran) bitene kadar
+ * akışın gideceği son durak burası.
  */
-export default function PairSuccessScreen() {
+export default function ChildCreatedScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.emoji}>🎉</Text>
-      <Text style={styles.title}>Eşleştiniz!</Text>
+      <Text style={styles.emoji}>👶</Text>
+      <Text style={styles.title}>Çocuğunuz oluştu!</Text>
       <Text style={styles.body}>
-        Artık birlikte bir çocuğa bakmaya hazırsınız.
+        Ana ekran (karakter, bakım barları) yakında burada olacak.
       </Text>
-
-      <Button
-        label="Çocuğumuzu Oluşturalım"
-        size="lg"
-        onPress={() => router.push('/child/create/gender')}
-        style={styles.cta}
-      />
     </View>
   );
 }
@@ -50,9 +41,5 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: brand.inkMuted,
     textAlign: 'center',
-    marginBottom: spacing.md,
-  },
-  cta: {
-    marginTop: spacing.md,
   },
 });
