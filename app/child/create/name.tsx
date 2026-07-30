@@ -20,20 +20,26 @@ export default function ChildNameScreen() {
 
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit() {
     const trimmed = name.trim();
     if (!trimmed) return;
 
     setLoading(true);
-    await createChild({
-      name: trimmed,
-      gender,
-      traits: { hairColor, eyeColor, skinTone },
-    });
-    setLoading(false);
-
-    router.replace('/child/created');
+    setError(null);
+    try {
+      await createChild({
+        name: trimmed,
+        gender,
+        traits: { hairColor, eyeColor, skinTone },
+      });
+      router.replace('/child/created');
+    } catch (err: any) {
+      setError(err?.message ?? 'Bir hata oluştu. Lütfen tekrar deneyin.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -47,13 +53,18 @@ export default function ChildNameScreen() {
 
       <TextInput
         value={name}
-        onChangeText={setName}
+        onChangeText={(text) => {
+          setError(null);
+          setName(text);
+        }}
         placeholder="İsim yazın"
         placeholderTextColor={brand.inkMuted}
         maxLength={NAME_MAX_LENGTH}
         autoFocus
-        style={styles.input}
+        style={[styles.input, !!error && styles.inputError]}
       />
+
+      {error && <Text style={styles.error}>{error}</Text>}
 
       <Button
         label="Oluştur"
@@ -95,6 +106,15 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  inputError: {
+    borderColor: brand.danger,
+  },
+  error: {
+    ...typography.caption,
+    color: brand.danger,
     textAlign: 'center',
     marginBottom: spacing.sm,
   },

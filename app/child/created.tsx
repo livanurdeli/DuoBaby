@@ -1,5 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 
+import { Button } from '@/components';
 import { brand } from '@/constants/colors';
 import { spacing } from '@/constants/spacing';
 import { typography } from '@/constants/typography';
@@ -14,8 +16,14 @@ export default function ChildCreatedScreen() {
       <Text style={styles.emoji}>👶</Text>
       <Text style={styles.title}>Çocuğunuz oluştu!</Text>
       <Text style={styles.body}>
-        Ana ekran (karakter, bakım barları) yakında burada olacak.
+        Ana ekran (karakter, bakım barları) hazırlandı!
       </Text>
+      <Button
+        label="Çocuğumuzun Ekranına Git"
+        size="lg"
+        onPress={() => router.replace('/child/main' as any)}
+        style={styles.cta}
+      />
     </View>
   );
 }
@@ -41,5 +49,9 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: brand.inkMuted,
     textAlign: 'center',
+  },
+  cta: {
+    marginTop: spacing.xl,
+    width: '100%',
   },
 });

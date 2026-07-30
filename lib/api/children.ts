@@ -12,6 +12,9 @@
  * `randomizeTraits()` ve `createChild()` çağırıyorlar.
  */
 
+import { supabase } from '@/lib/supabase';
+import { ensureSession } from '@/lib/api/auth';
+
 export type Gender = 'male' | 'female';
 
 export type Traits = {
@@ -20,10 +23,17 @@ export type Traits = {
   skinTone: string;
 };
 
+export type LifeStage = 'baby' | 'child' | 'teen' | 'adult';
+
 export type Child = {
   id: string;
   name: string;
   gender: Gender;
+  lifeStage: LifeStage;
+  hunger: number;
+  cleanliness: number;
+  energy: number;
+  happiness: number;
 } & Traits;
 
 const HAIR_COLORS = ['Siyah', 'Kahverengi', 'Sarı', 'Kızıl'] as const;
@@ -47,12 +57,94 @@ export async function createChild(input: {
   gender: Gender;
   traits: Traits;
 }): Promise<Child> {
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  const { userId } = await ensureSession();
+
+  // Aktif çift (pair) bilgisini sorgula
+  const { data: pairData, error: pairError } = await supabase
+    .from('pairs')
+    .select('id')
+    .or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
+    .maybeSingle();
+
+  if (pairError || !pairData) {
+    throw new Error(
+      pairError?.message ?? 'Eşleşme (pair) bulunamadı. Önce bir partnerle eşleşmelisiniz.'
+    );
+  }
+
+  // Supabase children tablosuna kaydet (snake_case eşlemesi)
+  const { data: childData, error: childError } = await supabase
+    .from('children')
+    .insert({
+      pair_id: pairData.id,
+      name: input.name,
+      gender: input.gender,
+      hair_color: input.traits.hairColor,
+      eye_color: input.traits.eyeColor,
+      skin_tone: input.traits.skinTone,
+    })
+    .select()
+    .single();
+
+  if (childError || !childData) {
+    throw new Error(childError?.message ?? 'Çocuk kaydı oluşturulamadı.');
+  }
 
   return {
-    id: `mock-child-${Date.now()}`,
-    name: input.name,
-    gender: input.gender,
-    ...input.traits,
+    id: childData.id,
+    name: childData.name,
+    gender: childData.gender as Gender,
+    hairColor: childData.hair_color,
+    eyeColor: childData.eye_color,
+    skinTone: childData.skin_tone,
+    lifeStage: childData.life_stage as LifeStage,
+    hunger: childData.hunger,
+    cleanliness: childData.cleanliness,
+    energy: childData.energy,
+    happiness: childData.happiness,
   };
 }
+
+export async function performCareAction(
+  childId: string,
+  actionType: 'feed' | 'clean' | 'sleep' | 'play',
+  currentValue: number
+): Promise<number> {
+  const { userId } = await ensureSession();
+
+  const increment = 20;
+  const newValue = Math.min(100, currentValue + increment);
+
+  const columnMap = {
+    feed: 'hunger',
+    clean: 'cleanliness',
+    sleep: 'energy',
+    play: 'happiness',
+  };
+
+  const columnName = columnMap[actionType];
+
+  // 1. Care action kaydını oluştur
+  const { error: actionError } = await supabase
+    .from('care_actions')
+    .insert({
+      child_id: childId,
+      user_id: userId,
+      action_type: actionType,
+    });
+
+  if (actionError) throw actionError;
+
+  // 2. Çocuğun ilgili bar değerini güncelle
+  const { error: updateError } = await supabase
+    .from('children')
+    .update({
+      [columnName]: newValue,
+    })
+    .eq('id', childId);
+
+  if (updateError) throw updateError;
+
+  return newValue;
+}
+

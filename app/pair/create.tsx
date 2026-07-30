@@ -34,7 +34,18 @@ export default function CreatePairScreen() {
         if (!isMounted) return;
         setStatus('joined');
         router.replace('/pair/success');
+      }).catch((err) => {
+        console.error('waitForPartner error:', err);
       });
+    }).catch((err) => {
+      if (!isMounted) return;
+      console.error('generatePairCode error:', err);
+      if (err?.message?.includes('Zaten bir esin var')) {
+        // Zaten eşleşmişse doğrudan başarı ekranına yönlendir
+        router.replace('/pair/success' as any);
+      } else {
+        alert(err?.message ?? 'Kod oluşturulamadı.');
+      }
     });
 
     return () => {

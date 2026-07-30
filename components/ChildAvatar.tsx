@@ -27,6 +27,7 @@ type ChildAvatarProps = {
   eyeColor: string;
   skinTone: string;
   size?: number;
+  expression?: 'happy' | 'sad' | 'sleeping' | 'neutral';
 };
 
 /**
@@ -40,6 +41,7 @@ export function ChildAvatar({
   eyeColor,
   skinTone,
   size = 140,
+  expression = 'neutral',
 }: ChildAvatarProps) {
   const skin = SKIN_TONE_COLORS[skinTone] ?? SKIN_TONE_COLORS.Açık;
   const hair = HAIR_COLOR_COLORS[hairColor] ?? HAIR_COLOR_COLORS.Siyah;
@@ -48,6 +50,59 @@ export function ChildAvatar({
   const eyeSize = size * 0.09;
   const eyeOffsetX = size * 0.2;
   const eyeOffsetY = size * 0.44;
+
+  const isSleeping = expression === 'sleeping';
+
+  // Ağız stili
+  let mouthStyle: any = {};
+  if (expression === 'happy') {
+    mouthStyle = {
+      width: size * 0.2,
+      height: size * 0.1,
+      borderBottomLeftRadius: size * 0.1,
+      borderBottomRightRadius: size * 0.1,
+      backgroundColor: brand.ink,
+      top: size * 0.62,
+      left: size / 2 - size * 0.1,
+    };
+  } else if (expression === 'sad') {
+    mouthStyle = {
+      width: size * 0.18,
+      height: size * 0.08,
+      borderTopLeftRadius: size * 0.09,
+      borderTopRightRadius: size * 0.09,
+      borderWidth: 2.5,
+      borderColor: brand.ink,
+      borderBottomColor: 'transparent',
+      borderLeftColor: 'transparent',
+      borderRightColor: 'transparent',
+      top: size * 0.65,
+      left: size / 2 - (size * 0.18) / 2,
+      backgroundColor: 'transparent',
+    };
+  } else if (expression === 'sleeping') {
+    mouthStyle = {
+      width: size * 0.07,
+      height: size * 0.07,
+      borderRadius: (size * 0.07) / 2,
+      borderWidth: 2,
+      borderColor: brand.ink,
+      backgroundColor: 'transparent',
+      top: size * 0.64,
+      left: size / 2 - (size * 0.07) / 2,
+    };
+  } else {
+    // neutral
+    mouthStyle = {
+      width: size * 0.22,
+      height: size * 0.06,
+      borderRadius: size * 0.03,
+      backgroundColor: brand.ink,
+      top: size * 0.64,
+      left: size / 2 - size * 0.11,
+      opacity: 0.7,
+    };
+  }
 
   return (
     <View style={{ width: size, height: size }}>
@@ -78,46 +133,71 @@ export function ChildAvatar({
         ]}
       />
       {/* Gözler */}
-      <View
-        style={[
-          styles.eye,
-          {
-            width: eyeSize,
-            height: eyeSize,
-            borderRadius: eyeSize / 2,
-            backgroundColor: eye,
-            top: eyeOffsetY,
-            left: size / 2 - eyeOffsetX - eyeSize / 2,
-          },
-        ]}
-      />
-      <View
-        style={[
-          styles.eye,
-          {
-            width: eyeSize,
-            height: eyeSize,
-            borderRadius: eyeSize / 2,
-            backgroundColor: eye,
-            top: eyeOffsetY,
-            left: size / 2 + eyeOffsetX - eyeSize / 2,
-          },
-        ]}
-      />
+      {isSleeping ? (
+        <>
+          {/* Sol Göz (Kapalı) */}
+          <View
+            style={[
+              styles.eye,
+              {
+                width: eyeSize * 1.2,
+                height: 3,
+                borderRadius: 1.5,
+                backgroundColor: brand.ink,
+                top: eyeOffsetY + eyeSize / 2 - 1.5,
+                left: size / 2 - eyeOffsetX - (eyeSize * 1.2) / 2,
+              },
+            ]}
+          />
+          {/* Sağ Göz (Kapalı) */}
+          <View
+            style={[
+              styles.eye,
+              {
+                width: eyeSize * 1.2,
+                height: 3,
+                borderRadius: 1.5,
+                backgroundColor: brand.ink,
+                top: eyeOffsetY + eyeSize / 2 - 1.5,
+                left: size / 2 + eyeOffsetX - (eyeSize * 1.2) / 2,
+              },
+            ]}
+          />
+        </>
+      ) : (
+        <>
+          {/* Sol Göz */}
+          <View
+            style={[
+              styles.eye,
+              {
+                width: eyeSize,
+                height: eyeSize,
+                borderRadius: eyeSize / 2,
+                backgroundColor: eye,
+                top: eyeOffsetY,
+                left: size / 2 - eyeOffsetX - eyeSize / 2,
+              },
+            ]}
+          />
+          {/* Sağ Göz */}
+          <View
+            style={[
+              styles.eye,
+              {
+                width: eyeSize,
+                height: eyeSize,
+                borderRadius: eyeSize / 2,
+                backgroundColor: eye,
+                top: eyeOffsetY,
+                left: size / 2 + eyeOffsetX - eyeSize / 2,
+              },
+            ]}
+          />
+        </>
+      )}
       {/* Ağız */}
-      <View
-        style={[
-          styles.mouth,
-          {
-            width: size * 0.22,
-            height: size * 0.06,
-            borderRadius: size * 0.03,
-            backgroundColor: brand.ink,
-            top: size * 0.64,
-            left: size / 2 - size * 0.11,
-          },
-        ]}
-      />
+      <View style={[styles.mouth, mouthStyle]} />
     </View>
   );
 }
@@ -134,6 +214,5 @@ const styles = StyleSheet.create({
   },
   mouth: {
     position: 'absolute',
-    opacity: 0.7,
   },
 });
