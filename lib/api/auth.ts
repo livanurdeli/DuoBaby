@@ -1,27 +1,31 @@
+import { supabase } from '@/lib/supabase';
+
 /**
  * Anonim oturum işlemleri.
  * ------------------------------------------------------------------
- * G1-4 (Anonim auth akışı) tamamlanana kadar burası SAHTE (mock) bir
- * oturum döndürür. Supabase kurulduğunda değişecek olan TEK yer burası:
- *
- *   export async function ensureSession(): Promise<Session> {
- *     const { data, error } = await supabase.auth.signInAnonymously();
- *     if (error) throw error;
- *     return { userId: data.user!.id };
- *   }
- *
- * Ekranlar (`app/index.tsx` vb.) bu fonksiyonun içinde ne olduğunu
- * bilmez, sadece `ensureSession()` çağırır — bu yüzden Supabase
- * bağlandığında ekran kodlarında hiçbir değişiklik gerekmez.
+ * G1-4 tamamlandı: artık gerçek Supabase anonim oturumu kullanılıyor.
+ * Ekranlar (`app/index.tsx` vb.) hâlâ sadece `ensureSession()` çağırıyor,
+ * içeride ne olduğunu bilmiyor — bu yüzden bu değişiklik ekran
+ * kodlarında hiçbir şeyi bozmadı.
  */
 
 export type Session = {
   userId: string;
 };
 
-const MOCK_NETWORK_DELAY_MS = 500;
-
 export async function ensureSession(): Promise<Session> {
-  await new Promise((resolve) => setTimeout(resolve, MOCK_NETWORK_DELAY_MS));
-  return { userId: 'mock-user-1' };
+  // Zaten açık bir oturum varsa (uygulama daha önce açılmış, AsyncStorage'da
+  // kayıtlıysa) onu kullan, tekrar anonim oturum açma.
+  const { data: existing } = await supabase.auth.getSession();
+  if (existing.session?.user) {
+    return { userId: existing.session.user.id };
+  }
+
+  const { data, error } = await supabase.auth.signInAnonymously();
+
+  if (error || !data.user) {
+    throw error ?? new Error('Anonim oturum açılamadı.');
+  }
+
+  return { userId: data.user.id };
 }
