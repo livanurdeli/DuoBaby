@@ -24,33 +24,27 @@ const LOW_THRESHOLD = 20;
  */
 export function Bar({ label, value, color, style }: BarProps) {
   const clamped = Math.max(0, Math.min(100, value));
-  const widthAnim = useRef(new Animated.Value(clamped)).current;
+  const heightAnim = useRef(new Animated.Value(clamped)).current;
 
   useEffect(() => {
-    Animated.timing(widthAnim, {
+    Animated.timing(heightAnim, {
       toValue: clamped,
       duration: 450,
-      useNativeDriver: false, // width animasyonu native driver desteklemiyor
+      useNativeDriver: false,
     }).start();
-  }, [clamped, widthAnim]);
+  }, [clamped, heightAnim]);
 
   const isLow = clamped <= LOW_THRESHOLD;
 
   return (
-    <View style={style}>
-      <View style={styles.labelRow}>
-        <Text style={styles.label}>{label}</Text>
-        <Text style={[styles.value, isLow && { color: brand.danger }]}>
-          {Math.round(clamped)}
-        </Text>
-      </View>
+    <View style={[styles.container, style]}>
       <View style={styles.track}>
         <Animated.View
           style={[
             styles.fill,
             {
               backgroundColor: isLow ? brand.danger : color,
-              width: widthAnim.interpolate({
+              height: heightAnim.interpolate({
                 inputRange: [0, 100],
                 outputRange: ['0%', '100%'],
               }),
@@ -58,33 +52,36 @@ export function Bar({ label, value, color, style }: BarProps) {
           ]}
         />
       </View>
+      <Text style={styles.emoji}>{label}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: spacing.xs,
-  },
-  label: {
-    ...typography.caption,
-    color: brand.inkMuted,
+  container: {
+    alignItems: 'center',
+    gap: spacing.xs,
   },
   value: {
     ...typography.caption,
     color: brand.ink,
     fontFamily: typography.bodyBold.fontFamily,
+    fontSize: 12,
   },
   track: {
-    height: 14,
+    width: 16,
+    height: 80,
     borderRadius: radius.pill,
     backgroundColor: brand.forestMuted,
     overflow: 'hidden',
+    justifyContent: 'flex-end',
   },
   fill: {
-    height: '100%',
+    width: '100%',
     borderRadius: radius.pill,
+  },
+  emoji: {
+    fontSize: 22,
+    marginTop: spacing.xs,
   },
 });

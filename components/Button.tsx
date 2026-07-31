@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  StyleProp,
   StyleSheet,
   Text,
   TextStyle,
@@ -16,14 +17,14 @@ type ButtonVariant = 'primary' | 'secondary' | 'ghost';
 type ButtonSize = 'md' | 'lg';
 
 type ButtonProps = {
-  label: string;
+  label?: string;
   onPress: () => void;
   variant?: ButtonVariant;
   size?: ButtonSize;
   disabled?: boolean;
   loading?: boolean;
   icon?: ReactNode;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 };
 
 type VariantStyle = { container: ViewStyle; text: TextStyle };
@@ -82,7 +83,7 @@ export function Button({
       ) : (
         <>
           {icon}
-          <Text style={[styles.label, variantStyle.text]}>{label}</Text>
+          {label ? <Text style={[styles.label, variantStyle.text]}>{label}</Text> : null}
         </>
       )}
     </Pressable>
