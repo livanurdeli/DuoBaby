@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AnimatedCharacter, Bar, Button } from '@/components';
@@ -71,6 +71,13 @@ export default function ChildHomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.name}>{name || 'Bebeğiniz'}</Text>
+
+        <Button
+          label="Bugünkü modun"
+          variant="ghost"
+          onPress={() => router.push('/mood/entry')}
+        />
+
 
         <View style={styles.characterContainer}>
           {/* Merkezdeki Karakter (500 birim, mutlak ortalanmış) */}
