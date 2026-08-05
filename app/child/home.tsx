@@ -1,76 +1,183 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { AnimatedCharacter, Bar, Button } from '@/components';
+import { AnimatedCharacter, Bar, Button, Toast } from '@/components';
 import { brand, care as careColors } from '@/constants/colors';
 import { spacing } from '@/constants/spacing';
 import { typography } from '@/constants/typography';
-import type { Gender } from '@/lib/api/children';
+import {
+  gameAgeYears,
+  LIFE_STAGE_LABELS,
+  type Gender,
+  type LifeStage,
+} from '@/lib/api/children';
+import { useRealtimeChild, useRealtimePartnerCare } from '@/hooks/useRealtime';
 import {
   ACTION_META,
   applyCareAction,
-  applyDemoDecay,
   DEFAULT_CARE_STATS,
   getExpression,
-  logCareAction,
+  performCareAction,
+  syncChild,
   type CareAction,
   type CareStats,
 } from '@/lib/api/care';
-
-// Geliştirme/test amaçlı: barların ne kadar sürede biraz düşeceği.
-// Gerçek decay G1-7'de last_decay_at üzerinden hesaplanacak, bu SADECE
-// ekranı boş barlarla da test edebilmek için var.
-const DEMO_DECAY_INTERVAL_MS = 15000;
+import { getStreak, type Streak } from '@/lib/api/streaks';
+import { notifyPartner } from '@/lib/api/push';
+import { careEventText } from '@/lib/api/notifications';
+import { ensureSession } from '@/lib/api/auth';
 
 export default function ChildHomeScreen() {
-  const { childId, name, gender, hairColor, eyeColor, skinTone } = useLocalSearchParams<{
-    childId: string;
-    name: string;
-    gender: Gender;
-    hairColor: string;
-    eyeColor: string;
-    skinTone: string;
-  }>();
+  const { childId, name, gender, birthDate, hairColor, eyeColor, skinTone } =
+    useLocalSearchParams<{
+      childId: string;
+      name: string;
+      gender: Gender;
+      birthDate: string;
+      hairColor: string;
+      eyeColor: string;
+      skinTone: string;
+    }>();
 
   const [stats, setStats] = useState<CareStats>(DEFAULT_CARE_STATS);
+  const [lifeStage, setLifeStage] = useState<LifeStage>('baby');
+  const [streak, setStreak] = useState<Streak | null>(null);
   const [pendingAction, setPendingAction] = useState<CareAction | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | undefined>();
   const bouncePulse = useRef(0);
   const [bounceTick, setBounceTick] = useState(0);
 
   const expression = getExpression(stats);
 
-  // Demo decay — sadece geliştirme sırasında barların hareket ettiğini
-  // görmek için. G1-7 gelince bu efekt tamamen kaldırılacak.
+  // Ekran açılışında birikmiş decay'i sunucuda işlet ve gerçek değerleri al.
   useEffect(() => {
-    const interval = setInterval(() => {
-      setStats((prev) => applyDemoDecay(prev));
-    }, DEMO_DECAY_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, []);
+    if (!childId) return;
+    let isMounted = true;
+
+    syncChild(childId)
+      .then((fresh) => {
+        if (!isMounted) return;
+        setStats(fresh.stats);
+        setLifeStage(fresh.lifeStage);
+      })
+      .catch((err) => {
+        if (isMounted) setError(err instanceof Error ? err.message : 'Bakım durumu alınamadı.');
+      });
+
+    ensureSession()
+      .then(({ userId: id }) => {
+        if (isMounted) setUserId(id);
+      })
+      .catch(() => {});
+
+    getStreak()
+      .then((fresh) => {
+        if (isMounted) setStreak(fresh);
+      })
+      .catch(() => {
+        // Streak kozmetik: alınamazsa ekranı hata ile doldurma.
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [childId]);
+
+  // Partner bakım yapınca barlar kendiliğinden güncellensin.
+  // Kendi aksiyonumuz da olay olarak döner; RPC'nin döndürdüğü değerle
+  // aynı satır olduğu için çakışma olmuyor.
+  useRealtimeChild(childId, (row) => {
+    setStats({
+      hunger: row.hunger,
+      cleanliness: row.cleanliness,
+      energy: row.energy,
+      happiness: row.happiness,
+    });
+    setLifeStage(row.life_stage);
+  });
+
+  // Partner bir şey yapınca uygulama açıkken de haberi olsun (G2-10).
+  useRealtimePartnerCare(userId, (row) => {
+    setToast(careEventText(row.action_type, name || 'çocuğunuz', 'Partnerin'));
+  });
 
   async function handleAction(action: CareAction) {
     if (pendingAction) return; // aynı anda tek aksiyon
 
     setPendingAction(action);
-    setStats((prev) => applyCareAction(prev, action));
+    setError(null);
+
+    // Optimistic: bar hemen hareket etsin. Sunucudan dönen değer geçerli olan.
+    const optimistic = applyCareAction(stats, action);
+    setStats(optimistic);
 
     bouncePulse.current += 1;
     setBounceTick(bouncePulse.current);
 
-    await logCareAction(childId, action);
-    setPendingAction(null);
+    try {
+      const fresh = await performCareAction(childId, action);
+      setStats(fresh.stats);
+      setLifeStage(fresh.lifeStage);
+      // Aksiyon partnerin gününü de tamamlamış olabilir — seriyi tazele.
+      setStreak(await getStreak());
+
+      notifyPartner({ kind: 'care', detail: action, childName: name });
+
+      // Aksiyon sırasında evre değiştiyse (sync_child yaşı da işliyor)
+      // partner bunu ayrıca duysun.
+      if (fresh.lifeStage !== lifeStage) {
+        notifyPartner({ kind: 'stage', detail: fresh.lifeStage, childName: name });
+      }
+    } catch (err) {
+      setStats(stats); // sunucu reddetti, optimistic değeri geri al
+      setError(err instanceof Error ? err.message : 'Aksiyon uygulanamadı.');
+    } finally {
+      setPendingAction(null);
+    }
   }
 
   const ORDERED_ACTIONS: CareAction[] = ['feed', 'sleep', 'clean', 'play'];
 
   return (
     <View style={styles.container}>
+      <Toast message={toast} onHide={() => setToast(null)} />
+
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.name}>{name || 'Bebeğiniz'}</Text>
+
+        <Text style={styles.stage}>
+          {LIFE_STAGE_LABELS[lifeStage]}
+          {birthDate ? ` · ${gameAgeYears(birthDate)} yaşında` : ''}
+        </Text>
+
+        {streak && streak.current > 0 && (
+          <Text style={styles.streak}>
+            🔥 {streak.current} günlük seri
+            {streak.completedToday ? '' : ' · bugün ikiniz de ilgilenin'}
+          </Text>
+        )}
+
+        <Button
+          label="Bugünkü modun"
+          variant="ghost"
+          onPress={() => router.push('/mood/entry')}
+        />
+
+        <Button
+          label="Olup bitenler"
+          variant="ghost"
+          onPress={() =>
+            router.push({ pathname: '/notifications', params: { childName: name } })
+          }
+        />
+
+        {error && <Text style={styles.error}>{error}</Text>}
 
         <View style={styles.characterContainer}>
           {/* Merkezdeki Karakter (500 birim, mutlak ortalanmış) */}
@@ -131,6 +238,19 @@ const styles = StyleSheet.create({
     ...typography.display,
     color: brand.ink,
     marginTop: 4,
+  },
+  stage: {
+    ...typography.caption,
+    color: brand.inkMuted,
+  },
+  streak: {
+    ...typography.bodyBold,
+    color: brand.honey,
+  },
+  error: {
+    ...typography.body,
+    color: brand.danger,
+    textAlign: 'center',
   },
   characterContainer: {
     width: '100%',

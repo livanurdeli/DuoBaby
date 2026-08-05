@@ -37,31 +37,65 @@ export async function joinWithCode(code: string): Promise<JoinResult> {
   return error ? { success: false, message: error.message } : { success: true };
 }
 
-const POLL_MS = 2000;
 const TIMEOUT_MS = 10 * 60 * 1000;
 
 /**
  * Kod oluşturan tarafın ekranında, partner kodu girene kadar bekler.
- * ponytail: 2sn polling — eşleşme ekranı kısa ömürlü ve tek satır
- * sorguluyor. Realtime subscription G1-11'de gelecek, o zaman burası
- * postgres_changes dinlemeye döner.
+ * G1-11 ile polling kalktı: `pairs` realtime yayınında (0005), partner
+ * `join_pair` çağırdığı anda UPDATE olayı geliyor.
+ *
+ * Aboneliği kurmadan ÖNCE bir kez sorguluyoruz — partner biz dinlemeye
+ * başlamadan katılmış olabilir, o olay bir daha gelmez.
  */
 export async function waitForPartner(code: string): Promise<void> {
-  const deadline = Date.now() + TIMEOUT_MS;
-
-  while (Date.now() < deadline) {
+  const alreadyJoined = async () => {
     const { data } = await supabase
       .from('pairs')
       .select('user2_id')
       .eq('pair_code', code)
       .maybeSingle();
+    return Boolean(data?.user2_id);
+  };
 
-    if (data?.user2_id) return;
+  return new Promise<void>((resolve, reject) => {
+    let settled = false;
 
-    await new Promise((resolve) => setTimeout(resolve, POLL_MS));
-  }
+    const finish = (err?: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      supabase.removeChannel(channel);
+      if (err) reject(err);
+      else resolve();
+    };
 
-  throw new Error('Partner bekleme süresi doldu.');
+    const timer = setTimeout(
+      () => finish(new Error('Partner bekleme süresi doldu.')),
+      TIMEOUT_MS
+    );
+
+    const channel = supabase
+      .channel(`pair:${code}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'pairs',
+          filter: `pair_code=eq.${code}`,
+        },
+        (payload) => {
+          if ((payload.new as { user2_id: string | null }).user2_id) finish();
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          alreadyJoined().then((joined) => {
+            if (joined) finish();
+          });
+        }
+      });
+  });
 }
 
 export type PairingStatus =

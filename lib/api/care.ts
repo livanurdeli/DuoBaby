@@ -1,20 +1,20 @@
 /**
  * Bakım (care) işlemleri.
  * ------------------------------------------------------------------
- * G1-7 (Bakım logic'i) tamamlanana kadar SAHTE (mock) çalışıyor —
- * `createChild`'daki mock deseniyle aynı mantık.
+ * G1-7 tamamlandı: mock kaldırıldı, barlar sunucuda hesaplanıyor
+ * (bkz. supabase/migrations/0004_care.sql).
  *
- * G1-7 bitince değişecek yerler:
- *  - applyCareAction() burada saf (pure) bir fonksiyon olarak kalabilir,
- *    ekranlar "optimistic update" için client'ta da çağırabilir.
- *  - logCareAction() → Supabase'de gerçek bir `care_actions` satırı
- *    oluşturacak ve barların gerçek güncel değerini (decay dahil)
- *    sunucudan geri döndürecek.
- *  - Decay (barların zamanla düşmesi) burada YOK — G1-7'de
- *    `last_decay_at` farkından hesaplanacak. Bu dosyada sadece
- *    ekranın kendi kendine test edebilmesi için hafif bir client-side
- *    decay yardımcı fonksiyonu var, gerçek kural değil.
+ * Bardaki geçerli değer HER ZAMAN sunucudan dönen satır. Buradaki
+ * `applyCareAction()` saf fonksiyonu yalnızca optimistic update için —
+ * kullanıcı butona basınca bar anında hareket etsin, cevap gelince
+ * gerçek değere otursun diye duruyor.
+ *
+ * Decay `last_decay_at` farkından sunucuda işleniyor; cron yok, uygulama
+ * açılışındaki `syncCareStats()` çağrısı yetiyor (roadmap bölüm 8).
  */
+
+import { supabase } from '@/lib/supabase';
+import type { LifeStage } from '@/lib/api/children';
 
 export type CareStats = {
   hunger: number;
@@ -25,12 +25,16 @@ export type CareStats = {
 
 export type CareAction = 'feed' | 'clean' | 'sleep' | 'play';
 
-/** Yeni oluşturulan bir çocuğun başlangıç bar değerleri. */
+/**
+ * Sunucudan gerçek değerler gelene kadar gösterilen başlangıç değerleri.
+ * `children` tablosundaki kolon default'larıyla (100) aynı — aksi hâlde
+ * yeni çocukta barlar önce 80 görünüp sonra 100'e zıplardı.
+ */
 export const DEFAULT_CARE_STATS: CareStats = {
-  hunger: 80,
-  cleanliness: 80,
-  energy: 80,
-  happiness: 80,
+  hunger: 100,
+  cleanliness: 100,
+  energy: 100,
+  happiness: 100,
 };
 
 /** Her aksiyonun barlar üzerindeki etkisi (roadmap'teki 4 aksiyon). */
@@ -65,15 +69,65 @@ export function applyCareAction(stats: CareStats, action: CareAction): CareStats
   return next;
 }
 
-/** Aksiyonu sunucuya loglar (mock). G1-7 bitince gerçek insert olacak. */
-export async function logCareAction(
+type ChildRow = CareStats & {
+  life_stage: LifeStage;
+  status: 'active' | 'left_home';
+};
+
+/** İki RPC de aynı `children` satırını döndürüyor: barlar + evre bir arada. */
+export type ChildSnapshot = {
+  stats: CareStats;
+  lifeStage: LifeStage;
+  status: 'active' | 'left_home';
+};
+
+function toSnapshot(row: ChildRow): ChildSnapshot {
+  return {
+    stats: {
+      hunger: row.hunger,
+      cleanliness: row.cleanliness,
+      energy: row.energy,
+      happiness: row.happiness,
+    },
+    lifeStage: row.life_stage,
+    status: row.status,
+  };
+}
+
+/**
+ * Geçen zamanı işler: birikmiş decay + `birth_date`'ten evre güncellemesi
+ * (G1-8). Ekran açılışında bir kez çağrılır, cron gerekmiyor.
+ */
+export async function syncChild(childId: string): Promise<ChildSnapshot> {
+  const { data, error } = await supabase.rpc('sync_child', {
+    p_child_id: childId,
+  });
+
+  if (error || !data) {
+    throw new Error(error?.message ?? 'Bakım durumu alınamadı.');
+  }
+
+  return toSnapshot(data as ChildRow);
+}
+
+/**
+ * Aksiyonu uygular: sunucu önce decay'i işler, sonra etkiyi ekler ve
+ * `care_actions`'a log atar. Dönen değer barların yeni gerçek hâli.
+ */
+export async function performCareAction(
   childId: string,
   action: CareAction
-): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 200));
-  // TODO(G1-7): supabase.from('care_actions').insert({ child_id: childId, action_type: action })
-  void childId;
-  void action;
+): Promise<ChildSnapshot> {
+  const { data, error } = await supabase.rpc('apply_care_action', {
+    p_child_id: childId,
+    p_action: action,
+  });
+
+  if (error || !data) {
+    throw new Error(error?.message ?? 'Aksiyon uygulanamadı.');
+  }
+
+  return toSnapshot(data as ChildRow);
 }
 
 export type Expression = 'happy' | 'neutral' | 'sad' | 'sick';
@@ -102,18 +156,4 @@ export function getExpression(stats: CareStats): Expression {
   if (average >= HAPPY_THRESHOLD) return 'happy';
   if (average >= NEUTRAL_THRESHOLD) return 'neutral';
   return 'sad';
-}
-
-/**
- * Geliştirme/test amaçlı hafif bir client-side decay. Gerçek decay kuralı
- * DEĞİL — sadece ekranı boş barlarla da görebilmek için var. G1-7 gelince
- * kaldırılabilir.
- */
-export function applyDemoDecay(stats: CareStats, amount = 1): CareStats {
-  return {
-    hunger: clamp(stats.hunger - amount),
-    cleanliness: clamp(stats.cleanliness - amount),
-    energy: clamp(stats.energy - amount * 0.7),
-    happiness: clamp(stats.happiness - amount * 0.5),
-  };
 }
