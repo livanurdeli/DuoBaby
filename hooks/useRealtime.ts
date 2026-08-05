@@ -67,6 +67,46 @@ export function useRealtimeChild(
   }, [childId, handler]);
 }
 
+type CareActionRow = {
+  id: string;
+  user_id: string;
+  action_type: 'feed' | 'clean' | 'sleep' | 'play';
+  created_at: string;
+};
+
+/**
+ * Partnerin bakım aksiyonlarını dinler — in-app toast (G2-10) için.
+ * Kendi aksiyonumuz eleniyor, kendimize bildirim göstermek anlamsız.
+ */
+export function useRealtimePartnerCare(
+  excludeUserId: string | undefined,
+  onAction: (row: CareActionRow) => void
+) {
+  const handler = useLatest(onAction);
+
+  useEffect(() => {
+    if (!excludeUserId) return;
+
+    const channel = supabase
+      .channel('care_actions')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'care_actions' },
+        (payload) => {
+          const row = payload.new as CareActionRow;
+          if (row?.user_id && row.user_id !== excludeUserId) {
+            handler.current(row);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [excludeUserId, handler]);
+}
+
 /**
  * Partnerin mod girişini dinler. Kendi girdiğimiz mod da olay olarak
  * gelir; `excludeUserId` ile eleniyor, yoksa kendi modumuz partnerin
