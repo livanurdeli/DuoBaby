@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { AnimatedCharacter, Bar, Button } from '@/components';
+import { AnimatedCharacter, Bar, Button, Toast } from '@/components';
 import { brand, care as careColors } from '@/constants/colors';
 import { spacing } from '@/constants/spacing';
 import { typography } from '@/constants/typography';
@@ -12,7 +12,7 @@ import {
   type Gender,
   type LifeStage,
 } from '@/lib/api/children';
-import { useRealtimeChild } from '@/hooks/useRealtime';
+import { useRealtimeChild, useRealtimePartnerCare } from '@/hooks/useRealtime';
 import {
   ACTION_META,
   applyCareAction,
@@ -25,6 +25,8 @@ import {
 } from '@/lib/api/care';
 import { getStreak, type Streak } from '@/lib/api/streaks';
 import { notifyPartner } from '@/lib/api/push';
+import { careEventText } from '@/lib/api/notifications';
+import { ensureSession } from '@/lib/api/auth';
 
 export default function ChildHomeScreen() {
   const { childId, name, gender, birthDate, hairColor, eyeColor, skinTone } =
@@ -43,6 +45,8 @@ export default function ChildHomeScreen() {
   const [streak, setStreak] = useState<Streak | null>(null);
   const [pendingAction, setPendingAction] = useState<CareAction | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | undefined>();
   const bouncePulse = useRef(0);
   const [bounceTick, setBounceTick] = useState(0);
 
@@ -62,6 +66,12 @@ export default function ChildHomeScreen() {
       .catch((err) => {
         if (isMounted) setError(err instanceof Error ? err.message : 'Bakım durumu alınamadı.');
       });
+
+    ensureSession()
+      .then(({ userId: id }) => {
+        if (isMounted) setUserId(id);
+      })
+      .catch(() => {});
 
     getStreak()
       .then((fresh) => {
@@ -87,6 +97,11 @@ export default function ChildHomeScreen() {
       happiness: row.happiness,
     });
     setLifeStage(row.life_stage);
+  });
+
+  // Partner bir şey yapınca uygulama açıkken de haberi olsun (G2-10).
+  useRealtimePartnerCare(userId, (row) => {
+    setToast(careEventText(row.action_type, name || 'çocuğunuz', 'Partnerin'));
   });
 
   async function handleAction(action: CareAction) {
@@ -128,6 +143,8 @@ export default function ChildHomeScreen() {
 
   return (
     <View style={styles.container}>
+      <Toast message={toast} onHide={() => setToast(null)} />
+
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -150,6 +167,14 @@ export default function ChildHomeScreen() {
           label="Bugünkü modun"
           variant="ghost"
           onPress={() => router.push('/mood/entry')}
+        />
+
+        <Button
+          label="Olup bitenler"
+          variant="ghost"
+          onPress={() =>
+            router.push({ pathname: '/notifications', params: { childName: name } })
+          }
         />
 
         {error && <Text style={styles.error}>{error}</Text>}
