@@ -5,13 +5,14 @@ import { ActivityIndicator, Animated, StyleSheet, Text, View } from 'react-nativ
 import { brand } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { ensureSession } from '@/lib/api/auth';
+import { checkPairingStatus } from '@/lib/api/pairing';
 
 /**
- * Uygulama girişi. Burada ekranda görünür bir şey yaptırmıyoruz —
- * sadece anonim oturumun (şimdilik mock) hazır olmasını bekleyip
- * karşılama ekranına yönlendiriyoruz. İleride burada "zaten eşleşmiş
- * mi, çocuğu var mı" gibi kontroller eklenip doğrudan ilgili ekrana
- * yönlendirme yapılacak.
+ * Uygulama girişi. Oturumun hazır olmasını bekler, ardından kullanıcının
+ * eşleşme durumuna göre dinamik yönlendirme yapar:
+ *  - Eşleşmişse: Doğrudan çocuk oluşturmaya gider
+ *  - Kod oluşturmuş bekliyorsa: Kod ekranına gider
+ *  - Eşleşmemişse: Karşılama ekranına gider
  */
 export default function AppEntry() {
   const fade = useRef(new Animated.Value(0)).current;
@@ -25,11 +26,24 @@ export default function AppEntry() {
 
     let isMounted = true;
 
-    ensureSession().then(() => {
-      if (isMounted) {
-        router.replace('/onboarding/welcome');
-      }
-    });
+    ensureSession()
+      .then(() => checkPairingStatus())
+      .then((pairing) => {
+        if (!isMounted) return;
+        if (pairing.status === 'paired') {
+          router.replace('/child/create/gender');
+        } else if (pairing.status === 'pending') {
+          router.replace('/pair/create');
+        } else {
+          router.replace('/onboarding/welcome');
+        }
+      })
+      .catch((err) => {
+        console.error('Initial status check failed:', err);
+        if (isMounted) {
+          router.replace('/onboarding/welcome');
+        }
+      });
 
     return () => {
       isMounted = false;

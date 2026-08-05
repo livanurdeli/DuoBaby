@@ -26,14 +26,23 @@ export default function ChildNameScreen() {
     if (!trimmed) return;
 
     setLoading(true);
-    await createChild({
+    const child = await createChild({
       name: trimmed,
       gender,
       traits: { hairColor, eyeColor, skinTone },
     });
     setLoading(false);
 
-    router.replace('/child/created');
+    router.replace({
+      pathname: '/child/created',
+      params: {
+        name: child.name,
+        gender: child.gender,
+        hairColor: child.hairColor,
+        eyeColor: child.eyeColor,
+        skinTone: child.skinTone,
+      },
+    });
   }
 
   return (

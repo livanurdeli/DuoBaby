@@ -63,3 +63,34 @@ export async function waitForPartner(code: string): Promise<void> {
 
   throw new Error('Partner bekleme süresi doldu.');
 }
+
+export type PairingStatus =
+  | { status: 'none' }
+  | { status: 'pending'; code: string }
+  | { status: 'paired'; pairId: string };
+
+export async function checkPairingStatus(): Promise<PairingStatus> {
+  const session = await ensureSession();
+  const userId = session.userId;
+
+  const { data, error } = await supabase
+    .from('pairs')
+    .select('id, user1_id, user2_id, pair_code')
+    .or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    return { status: 'none' };
+  }
+
+  if (data.user2_id === null) {
+    return { status: 'pending', code: data.pair_code };
+  }
+
+  return { status: 'paired', pairId: data.id };
+}
+

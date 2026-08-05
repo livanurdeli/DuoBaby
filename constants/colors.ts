@@ -15,7 +15,7 @@
  */
 
 export const brand = {
-  paper: '#F3F5EE', // ana arka plan — sıcak, hafif yeşilimsi kağıt tonu
+  paper: '#FEF8E6', // ana arka plan — tatlı, yumuşak soft sarı tonu
   surface: '#FFFEFB', // kart/panel arka planı (paper'dan bir tık daha açık)
   ink: '#24302B', // ana metin rengi (siyah değil, koyu orman tonu)
   inkMuted: '#5F6B63', // ikincil metin, açıklama

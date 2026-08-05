@@ -25,17 +25,33 @@ export default function CreatePairScreen() {
   useEffect(() => {
     let isMounted = true;
 
-    generatePairCode().then((newCode) => {
-      if (!isMounted) return;
-      setCode(newCode);
-      setStatus('ready');
-
-      waitForPartner(newCode).then(() => {
+    generatePairCode()
+      .then((newCode) => {
         if (!isMounted) return;
-        setStatus('joined');
-        router.replace('/pair/success');
+        setCode(newCode);
+        setStatus('ready');
+
+        waitForPartner(newCode)
+          .then(() => {
+            if (!isMounted) return;
+            setStatus('joined');
+            router.replace('/pair/success');
+          })
+          .catch((err) => {
+            console.error('Wait for partner failed:', err);
+          });
+      })
+      .catch((err) => {
+        console.error('Generate pair code failed:', err);
+        if (!isMounted) return;
+
+        if (err.message?.includes('Zaten bir esin var')) {
+          router.replace('/child/create/gender');
+        } else {
+          alert(err.message ?? 'Kod oluşturulamadı.');
+          router.replace('/pair');
+        }
       });
-    });
 
     return () => {
       isMounted = false;
