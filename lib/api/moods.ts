@@ -70,11 +70,16 @@ function toMood(row: MoodRow): Mood {
   };
 }
 
+const pad = (n: number) => String(n).padStart(2, '0');
+
+/** `date` kolonuyla aynı biçim (YYYY-MM-DD), cihazın YEREL gününe göre. */
+export function toDateKey(d: Date): string {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 /** Cihazın yerel günü — DB'deki `current_date` sunucu saatine göre çalışır. */
 function today(): string {
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  return toDateKey(new Date());
 }
 
 export async function saveTodayMood(input: {
@@ -139,4 +144,39 @@ export async function getTodayMoods(): Promise<TodayMoods> {
     mine: moods.find((m) => m.userId === userId) ?? null,
     partner: moods.find((m) => m.userId !== userId) ?? null,
   };
+}
+
+export type MonthMoods = {
+  userId: string;
+  /** Gün anahtarı (YYYY-MM-DD) → o günün iki modu. */
+  byDate: Record<string, { mine?: Mood; partner?: Mood }>;
+};
+
+/**
+ * Takvim için bir ayın tüm modları (G2-9). Tek sorgu; RLS zaten pair
+ * dışını kesiyor, kimin hangisi olduğunu user_id ayırıyor.
+ */
+export async function getMonthMoods(monthStart: Date): Promise<MonthMoods> {
+  const { userId } = await ensureSession();
+
+  const first = new Date(monthStart.getFullYear(), monthStart.getMonth(), 1);
+  const last = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
+
+  const { data, error } = await supabase
+    .from('moods')
+    .select(MOOD_COLUMNS)
+    .gte('date', toDateKey(first))
+    .lte('date', toDateKey(last));
+
+  if (error) throw error;
+
+  const byDate: MonthMoods['byDate'] = {};
+  for (const row of data ?? []) {
+    const entry = toMood(row as MoodRow);
+    const day = (byDate[entry.date] ??= {});
+    if (entry.userId === userId) day.mine = entry;
+    else day.partner = entry;
+  }
+
+  return { userId, byDate };
 }

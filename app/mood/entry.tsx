@@ -156,6 +156,12 @@ export default function MoodEntryScreen() {
         loading={saving}
         disabled={!selected}
       />
+
+      <Button
+        label="Mod takvimi"
+        variant="ghost"
+        onPress={() => router.push('/mood/calendar')}
+      />
     </ScrollView>
   );
 }
