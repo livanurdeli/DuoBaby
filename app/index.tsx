@@ -7,6 +7,7 @@ import { typography } from '@/constants/typography';
 import { ensureSession } from '@/lib/api/auth';
 import { checkPairingStatus } from '@/lib/api/pairing';
 import { getActiveChild } from '@/lib/api/children';
+import { registerPushToken } from '@/lib/api/push';
 
 /**
  * Uygulama girişi. Oturumun hazır olmasını bekler, ardından kullanıcının
@@ -29,7 +30,12 @@ export default function AppEntry() {
     let isMounted = true;
 
     ensureSession()
-      .then(() => checkPairingStatus())
+      .then(() => {
+        // Push kaydı akışı bloklamasın: izin diyaloğu açılırken yönlendirme
+        // devam etsin, token gelince arka planda profile yazılır.
+        registerPushToken().catch(() => {});
+        return checkPairingStatus();
+      })
       .then(async (pairing) => {
         if (!isMounted) return;
         if (pairing.status === 'paired') {
