@@ -7,6 +7,7 @@ import { brand, care as careColors } from '@/constants/colors';
 import { spacing } from '@/constants/spacing';
 import { typography } from '@/constants/typography';
 import type { Gender } from '@/lib/api/children';
+import { useRealtimeChild } from '@/hooks/useRealtime';
 import {
   ACTION_META,
   applyCareAction,
@@ -53,6 +54,18 @@ export default function ChildHomeScreen() {
       isMounted = false;
     };
   }, [childId]);
+
+  // Partner bakım yapınca barlar kendiliğinden güncellensin.
+  // Kendi aksiyonumuz da olay olarak döner; RPC'nin döndürdüğü değerle
+  // aynı satır olduğu için çakışma olmuyor.
+  useRealtimeChild(childId, (row) => {
+    setStats({
+      hunger: row.hunger,
+      cleanliness: row.cleanliness,
+      energy: row.energy,
+      happiness: row.happiness,
+    });
+  });
 
   async function handleAction(action: CareAction) {
     if (pendingAction) return; // aynı anda tek aksiyon
