@@ -23,6 +23,7 @@ import {
   type CareAction,
   type CareStats,
 } from '@/lib/api/care';
+import { getStreak, type Streak } from '@/lib/api/streaks';
 
 export default function ChildHomeScreen() {
   const { childId, name, gender, birthDate, hairColor, eyeColor, skinTone } =
@@ -38,6 +39,7 @@ export default function ChildHomeScreen() {
 
   const [stats, setStats] = useState<CareStats>(DEFAULT_CARE_STATS);
   const [lifeStage, setLifeStage] = useState<LifeStage>('baby');
+  const [streak, setStreak] = useState<Streak | null>(null);
   const [pendingAction, setPendingAction] = useState<CareAction | null>(null);
   const [error, setError] = useState<string | null>(null);
   const bouncePulse = useRef(0);
@@ -58,6 +60,14 @@ export default function ChildHomeScreen() {
       })
       .catch((err) => {
         if (isMounted) setError(err instanceof Error ? err.message : 'Bakım durumu alınamadı.');
+      });
+
+    getStreak()
+      .then((fresh) => {
+        if (isMounted) setStreak(fresh);
+      })
+      .catch(() => {
+        // Streak kozmetik: alınamazsa ekranı hata ile doldurma.
       });
 
     return () => {
@@ -95,6 +105,8 @@ export default function ChildHomeScreen() {
       const fresh = await performCareAction(childId, action);
       setStats(fresh.stats);
       setLifeStage(fresh.lifeStage);
+      // Aksiyon partnerin gününü de tamamlamış olabilir — seriyi tazele.
+      setStreak(await getStreak());
     } catch (err) {
       setStats(stats); // sunucu reddetti, optimistic değeri geri al
       setError(err instanceof Error ? err.message : 'Aksiyon uygulanamadı.');
@@ -117,6 +129,13 @@ export default function ChildHomeScreen() {
           {LIFE_STAGE_LABELS[lifeStage]}
           {birthDate ? ` · ${gameAgeYears(birthDate)} yaşında` : ''}
         </Text>
+
+        {streak && streak.current > 0 && (
+          <Text style={styles.streak}>
+            🔥 {streak.current} günlük seri
+            {streak.completedToday ? '' : ' · bugün ikiniz de ilgilenin'}
+          </Text>
+        )}
 
         <Button
           label="Bugünkü modun"
@@ -190,6 +209,10 @@ const styles = StyleSheet.create({
   stage: {
     ...typography.caption,
     color: brand.inkMuted,
+  },
+  streak: {
+    ...typography.bodyBold,
+    color: brand.honey,
   },
   error: {
     ...typography.body,
