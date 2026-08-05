@@ -36,6 +36,25 @@ export type Child = {
   lifeStage: LifeStage;
 } & Traits;
 
+/**
+ * Evre etiketleri ve eşikleri (G1-8). Eşikler `life_stage_for_age`
+ * (0006_growth.sql) ile aynı; oran 1 gerçek gün = 1 oyun yılı.
+ * Buradaki kopya sadece ekranda yaş/evre yazdırmak için — geçerli evre
+ * her zaman sunucudan gelen `life_stage`.
+ */
+export const LIFE_STAGE_LABELS: Record<LifeStage, string> = {
+  baby: 'Bebek',
+  child: 'Çocuk',
+  teen: 'Ergen',
+  adult: 'Evden ayrıldı',
+};
+
+/** Doğum tarihinden oyun yaşı: 1 gerçek gün = 1 oyun yılı. */
+export function gameAgeYears(birthDate: string): number {
+  const days = (Date.now() - new Date(birthDate).getTime()) / 86_400_000;
+  return Math.max(0, Math.floor(days));
+}
+
 const HAIR_COLORS = ['Siyah', 'Kahverengi', 'Sarı', 'Kızıl'] as const;
 const EYE_COLORS = ['Kahverengi', 'Yeşil', 'Mavi', 'Ela'] as const;
 const SKIN_TONES = ['Açık', 'Buğday', 'Esmer'] as const;
