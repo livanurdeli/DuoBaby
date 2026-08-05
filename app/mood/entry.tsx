@@ -24,6 +24,7 @@ import {
   type MoodColor,
 } from '@/lib/api/moods';
 import { useRealtimePartnerMood } from '@/hooks/useRealtime';
+import { notifyPartner } from '@/lib/api/push';
 
 /**
  * Günlük mod girişi (G2-8). Aynı gün tekrar girilirse üstüne yazılır —
@@ -81,6 +82,7 @@ export default function MoodEntryScreen() {
     setError(null);
     try {
       await saveTodayMood({ color: selected, note });
+      notifyPartner({ kind: 'mood' });
       router.back();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Mod kaydedilemedi.');

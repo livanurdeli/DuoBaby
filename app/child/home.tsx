@@ -24,6 +24,7 @@ import {
   type CareStats,
 } from '@/lib/api/care';
 import { getStreak, type Streak } from '@/lib/api/streaks';
+import { notifyPartner } from '@/lib/api/push';
 
 export default function ChildHomeScreen() {
   const { childId, name, gender, birthDate, hairColor, eyeColor, skinTone } =
@@ -107,6 +108,14 @@ export default function ChildHomeScreen() {
       setLifeStage(fresh.lifeStage);
       // Aksiyon partnerin gününü de tamamlamış olabilir — seriyi tazele.
       setStreak(await getStreak());
+
+      notifyPartner({ kind: 'care', detail: action, childName: name });
+
+      // Aksiyon sırasında evre değiştiyse (sync_child yaşı da işliyor)
+      // partner bunu ayrıca duysun.
+      if (fresh.lifeStage !== lifeStage) {
+        notifyPartner({ kind: 'stage', detail: fresh.lifeStage, childName: name });
+      }
     } catch (err) {
       setStats(stats); // sunucu reddetti, optimistic değeri geri al
       setError(err instanceof Error ? err.message : 'Aksiyon uygulanamadı.');
@@ -144,7 +153,6 @@ export default function ChildHomeScreen() {
         />
 
         {error && <Text style={styles.error}>{error}</Text>}
-
 
         <View style={styles.characterContainer}>
           {/* Merkezdeki Karakter (500 birim, mutlak ortalanmış) */}
