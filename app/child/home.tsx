@@ -10,18 +10,13 @@ import type { Gender } from '@/lib/api/children';
 import {
   ACTION_META,
   applyCareAction,
-  applyDemoDecay,
   DEFAULT_CARE_STATS,
   getExpression,
-  logCareAction,
+  performCareAction,
+  syncCareStats,
   type CareAction,
   type CareStats,
 } from '@/lib/api/care';
-
-// Geliştirme/test amaçlı: barların ne kadar sürede biraz düşeceği.
-// Gerçek decay G1-7'de last_decay_at üzerinden hesaplanacak, bu SADECE
-// ekranı boş barlarla da test edebilmek için var.
-const DEMO_DECAY_INTERVAL_MS = 15000;
 
 export default function ChildHomeScreen() {
   const { childId, name, gender, hairColor, eyeColor, skinTone } = useLocalSearchParams<{
@@ -35,31 +30,51 @@ export default function ChildHomeScreen() {
 
   const [stats, setStats] = useState<CareStats>(DEFAULT_CARE_STATS);
   const [pendingAction, setPendingAction] = useState<CareAction | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const bouncePulse = useRef(0);
   const [bounceTick, setBounceTick] = useState(0);
 
   const expression = getExpression(stats);
 
-  // Demo decay — sadece geliştirme sırasında barların hareket ettiğini
-  // görmek için. G1-7 gelince bu efekt tamamen kaldırılacak.
+  // Ekran açılışında birikmiş decay'i sunucuda işlet ve gerçek değerleri al.
   useEffect(() => {
-    const interval = setInterval(() => {
-      setStats((prev) => applyDemoDecay(prev));
-    }, DEMO_DECAY_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, []);
+    if (!childId) return;
+    let isMounted = true;
+
+    syncCareStats(childId)
+      .then((fresh) => {
+        if (isMounted) setStats(fresh);
+      })
+      .catch((err) => {
+        if (isMounted) setError(err instanceof Error ? err.message : 'Bakım durumu alınamadı.');
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [childId]);
 
   async function handleAction(action: CareAction) {
     if (pendingAction) return; // aynı anda tek aksiyon
 
     setPendingAction(action);
-    setStats((prev) => applyCareAction(prev, action));
+    setError(null);
+
+    // Optimistic: bar hemen hareket etsin. Sunucudan dönen değer geçerli olan.
+    const optimistic = applyCareAction(stats, action);
+    setStats(optimistic);
 
     bouncePulse.current += 1;
     setBounceTick(bouncePulse.current);
 
-    await logCareAction(childId, action);
-    setPendingAction(null);
+    try {
+      setStats(await performCareAction(childId, action));
+    } catch (err) {
+      setStats(stats); // sunucu reddetti, optimistic değeri geri al
+      setError(err instanceof Error ? err.message : 'Aksiyon uygulanamadı.');
+    } finally {
+      setPendingAction(null);
+    }
   }
 
   const ORDERED_ACTIONS: CareAction[] = ['feed', 'sleep', 'clean', 'play'];
@@ -77,6 +92,8 @@ export default function ChildHomeScreen() {
           variant="ghost"
           onPress={() => router.push('/mood/entry')}
         />
+
+        {error && <Text style={styles.error}>{error}</Text>}
 
 
         <View style={styles.characterContainer}>
@@ -138,6 +155,11 @@ const styles = StyleSheet.create({
     ...typography.display,
     color: brand.ink,
     marginTop: 4,
+  },
+  error: {
+    ...typography.body,
+    color: brand.danger,
+    textAlign: 'center',
   },
   characterContainer: {
     width: '100%',
