@@ -6,11 +6,13 @@ import { brand } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { ensureSession } from '@/lib/api/auth';
 import { checkPairingStatus } from '@/lib/api/pairing';
+import { getActiveChild } from '@/lib/api/children';
 
 /**
  * Uygulama girişi. Oturumun hazır olmasını bekler, ardından kullanıcının
  * eşleşme durumuna göre dinamik yönlendirme yapar:
- *  - Eşleşmişse: Doğrudan çocuk oluşturmaya gider
+ *  - Eşleşmiş + aktif çocuğu varsa: Ana ekrana gider
+ *  - Eşleşmiş, çocuğu yoksa: Çocuk oluşturmaya gider
  *  - Kod oluşturmuş bekliyorsa: Kod ekranına gider
  *  - Eşleşmemişse: Karşılama ekranına gider
  */
@@ -28,10 +30,26 @@ export default function AppEntry() {
 
     ensureSession()
       .then(() => checkPairingStatus())
-      .then((pairing) => {
+      .then(async (pairing) => {
         if (!isMounted) return;
         if (pairing.status === 'paired') {
-          router.replace('/child/create/gender');
+          const child = await getActiveChild();
+          if (!isMounted) return;
+          if (child) {
+            router.replace({
+              pathname: '/child/home',
+              params: {
+                childId: child.id,
+                name: child.name,
+                gender: child.gender,
+                hairColor: child.hairColor,
+                eyeColor: child.eyeColor,
+                skinTone: child.skinTone,
+              },
+            });
+          } else {
+            router.replace('/child/create/gender');
+          }
         } else if (pairing.status === 'pending') {
           router.replace('/pair/create');
         } else {

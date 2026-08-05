@@ -12,7 +12,8 @@ import type { Gender } from '@/lib/api/children';
  * kısa bir kutlama durağı — kullanıcıyı asıl ana ekrana (G2-6) yönlendirir.
  */
 export default function ChildCreatedScreen() {
-  const { name, gender, hairColor, eyeColor, skinTone } = useLocalSearchParams<{
+  const { childId, name, gender, hairColor, eyeColor, skinTone } = useLocalSearchParams<{
+    childId: string;
     name: string;
     gender: Gender;
     hairColor: string;
@@ -33,7 +34,7 @@ export default function ChildCreatedScreen() {
         onPress={() =>
           router.replace({
             pathname: '/child/home',
-            params: { name, gender, hairColor, eyeColor, skinTone },
+            params: { childId, name, gender, hairColor, eyeColor, skinTone },
           })
         }
       />
