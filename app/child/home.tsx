@@ -24,7 +24,8 @@ import {
 const DEMO_DECAY_INTERVAL_MS = 15000;
 
 export default function ChildHomeScreen() {
-  const { name, gender, hairColor, eyeColor, skinTone } = useLocalSearchParams<{
+  const { childId, name, gender, hairColor, eyeColor, skinTone } = useLocalSearchParams<{
+    childId: string;
     name: string;
     gender: Gender;
     hairColor: string;
@@ -57,8 +58,7 @@ export default function ChildHomeScreen() {
     bouncePulse.current += 1;
     setBounceTick(bouncePulse.current);
 
-    // childId henüz yok (G1-6 backend'e bağlanınca gelecek) — mock id.
-    await logCareAction('mock-child-id', action);
+    await logCareAction(childId, action);
     setPendingAction(null);
   }
 

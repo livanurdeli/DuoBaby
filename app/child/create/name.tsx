@@ -20,22 +20,31 @@ export default function ChildNameScreen() {
 
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit() {
     const trimmed = name.trim();
     if (!trimmed) return;
 
     setLoading(true);
-    const child = await createChild({
-      name: trimmed,
-      gender,
-      traits: { hairColor, eyeColor, skinTone },
-    });
+    let child;
+    try {
+      child = await createChild({
+        name: trimmed,
+        gender,
+        traits: { hairColor, eyeColor, skinTone },
+      });
+    } catch (err) {
+      setLoading(false);
+      setError(err instanceof Error ? err.message : 'Çocuk oluşturulamadı.');
+      return;
+    }
     setLoading(false);
 
     router.replace({
       pathname: '/child/created',
       params: {
+        childId: child.id,
         name: child.name,
         gender: child.gender,
         hairColor: child.hairColor,
@@ -64,6 +73,8 @@ export default function ChildNameScreen() {
         style={styles.input}
       />
 
+      {error && <Text style={styles.error}>{error}</Text>}
+
       <Button
         label="Oluştur"
         size="lg"
@@ -91,6 +102,12 @@ const styles = StyleSheet.create({
   body: {
     ...typography.body,
     color: brand.inkMuted,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  error: {
+    ...typography.body,
+    color: brand.danger,
     textAlign: 'center',
     marginBottom: spacing.sm,
   },
