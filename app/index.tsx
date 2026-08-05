@@ -41,6 +41,7 @@ export default function AppEntry() {
               params: {
                 childId: child.id,
                 name: child.name,
+                birthDate: child.birthDate,
                 gender: child.gender,
                 hairColor: child.hairColor,
                 eyeColor: child.eyeColor,

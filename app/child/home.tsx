@@ -6,7 +6,12 @@ import { AnimatedCharacter, Bar, Button } from '@/components';
 import { brand, care as careColors } from '@/constants/colors';
 import { spacing } from '@/constants/spacing';
 import { typography } from '@/constants/typography';
-import type { Gender } from '@/lib/api/children';
+import {
+  gameAgeYears,
+  LIFE_STAGE_LABELS,
+  type Gender,
+  type LifeStage,
+} from '@/lib/api/children';
 import { useRealtimeChild } from '@/hooks/useRealtime';
 import {
   ACTION_META,
@@ -14,22 +19,25 @@ import {
   DEFAULT_CARE_STATS,
   getExpression,
   performCareAction,
-  syncCareStats,
+  syncChild,
   type CareAction,
   type CareStats,
 } from '@/lib/api/care';
 
 export default function ChildHomeScreen() {
-  const { childId, name, gender, hairColor, eyeColor, skinTone } = useLocalSearchParams<{
-    childId: string;
-    name: string;
-    gender: Gender;
-    hairColor: string;
-    eyeColor: string;
-    skinTone: string;
-  }>();
+  const { childId, name, gender, birthDate, hairColor, eyeColor, skinTone } =
+    useLocalSearchParams<{
+      childId: string;
+      name: string;
+      gender: Gender;
+      birthDate: string;
+      hairColor: string;
+      eyeColor: string;
+      skinTone: string;
+    }>();
 
   const [stats, setStats] = useState<CareStats>(DEFAULT_CARE_STATS);
+  const [lifeStage, setLifeStage] = useState<LifeStage>('baby');
   const [pendingAction, setPendingAction] = useState<CareAction | null>(null);
   const [error, setError] = useState<string | null>(null);
   const bouncePulse = useRef(0);
@@ -42,9 +50,11 @@ export default function ChildHomeScreen() {
     if (!childId) return;
     let isMounted = true;
 
-    syncCareStats(childId)
+    syncChild(childId)
       .then((fresh) => {
-        if (isMounted) setStats(fresh);
+        if (!isMounted) return;
+        setStats(fresh.stats);
+        setLifeStage(fresh.lifeStage);
       })
       .catch((err) => {
         if (isMounted) setError(err instanceof Error ? err.message : 'Bakım durumu alınamadı.');
@@ -65,6 +75,7 @@ export default function ChildHomeScreen() {
       energy: row.energy,
       happiness: row.happiness,
     });
+    setLifeStage(row.life_stage);
   });
 
   async function handleAction(action: CareAction) {
@@ -81,7 +92,9 @@ export default function ChildHomeScreen() {
     setBounceTick(bouncePulse.current);
 
     try {
-      setStats(await performCareAction(childId, action));
+      const fresh = await performCareAction(childId, action);
+      setStats(fresh.stats);
+      setLifeStage(fresh.lifeStage);
     } catch (err) {
       setStats(stats); // sunucu reddetti, optimistic değeri geri al
       setError(err instanceof Error ? err.message : 'Aksiyon uygulanamadı.');
@@ -99,6 +112,11 @@ export default function ChildHomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.name}>{name || 'Bebeğiniz'}</Text>
+
+        <Text style={styles.stage}>
+          {LIFE_STAGE_LABELS[lifeStage]}
+          {birthDate ? ` · ${gameAgeYears(birthDate)} yaşında` : ''}
+        </Text>
 
         <Button
           label="Bugünkü modun"
@@ -168,6 +186,10 @@ const styles = StyleSheet.create({
     ...typography.display,
     color: brand.ink,
     marginTop: 4,
+  },
+  stage: {
+    ...typography.caption,
+    color: brand.inkMuted,
   },
   error: {
     ...typography.body,

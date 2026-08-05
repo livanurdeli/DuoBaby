@@ -14,6 +14,7 @@
  */
 
 import { supabase } from '@/lib/supabase';
+import type { LifeStage } from '@/lib/api/children';
 
 export type CareStats = {
   hunger: number;
@@ -68,22 +69,36 @@ export function applyCareAction(stats: CareStats, action: CareAction): CareStats
   return next;
 }
 
-type ChildStatsRow = CareStats;
+type ChildRow = CareStats & {
+  life_stage: LifeStage;
+  status: 'active' | 'left_home';
+};
 
-function toStats(row: ChildStatsRow): CareStats {
+/** İki RPC de aynı `children` satırını döndürüyor: barlar + evre bir arada. */
+export type ChildSnapshot = {
+  stats: CareStats;
+  lifeStage: LifeStage;
+  status: 'active' | 'left_home';
+};
+
+function toSnapshot(row: ChildRow): ChildSnapshot {
   return {
-    hunger: row.hunger,
-    cleanliness: row.cleanliness,
-    energy: row.energy,
-    happiness: row.happiness,
+    stats: {
+      hunger: row.hunger,
+      cleanliness: row.cleanliness,
+      energy: row.energy,
+      happiness: row.happiness,
+    },
+    lifeStage: row.life_stage,
+    status: row.status,
   };
 }
 
 /**
- * Barların güncel hâli: birikmiş decay'i işler ve sonucu döndürür.
- * Uygulama/ekran açılışında bir kez çağrılır.
+ * Geçen zamanı işler: birikmiş decay + `birth_date`'ten evre güncellemesi
+ * (G1-8). Ekran açılışında bir kez çağrılır, cron gerekmiyor.
  */
-export async function syncCareStats(childId: string): Promise<CareStats> {
+export async function syncChild(childId: string): Promise<ChildSnapshot> {
   const { data, error } = await supabase.rpc('sync_child', {
     p_child_id: childId,
   });
@@ -92,7 +107,7 @@ export async function syncCareStats(childId: string): Promise<CareStats> {
     throw new Error(error?.message ?? 'Bakım durumu alınamadı.');
   }
 
-  return toStats(data as ChildStatsRow);
+  return toSnapshot(data as ChildRow);
 }
 
 /**
@@ -102,7 +117,7 @@ export async function syncCareStats(childId: string): Promise<CareStats> {
 export async function performCareAction(
   childId: string,
   action: CareAction
-): Promise<CareStats> {
+): Promise<ChildSnapshot> {
   const { data, error } = await supabase.rpc('apply_care_action', {
     p_child_id: childId,
     p_action: action,
@@ -112,7 +127,7 @@ export async function performCareAction(
     throw new Error(error?.message ?? 'Aksiyon uygulanamadı.');
   }
 
-  return toStats(data as ChildStatsRow);
+  return toSnapshot(data as ChildRow);
 }
 
 export type Expression = 'happy' | 'neutral' | 'sad' | 'sick';
