@@ -112,6 +112,8 @@ export async function saveTodayMood(input: {
 }
 
 export type TodayMoods = {
+  /** Kendi kullanıcı id'imiz — realtime'da kendi olayımızı elemek için. */
+  userId: string;
   mine: Mood | null;
   partner: Mood | null;
 };
@@ -133,6 +135,7 @@ export async function getTodayMoods(): Promise<TodayMoods> {
   const moods = (data ?? []).map((row) => toMood(row as MoodRow));
 
   return {
+    userId,
     mine: moods.find((m) => m.userId === userId) ?? null,
     partner: moods.find((m) => m.userId !== userId) ?? null,
   };

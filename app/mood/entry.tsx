@@ -23,6 +23,7 @@ import {
   type Mood,
   type MoodColor,
 } from '@/lib/api/moods';
+import { useRealtimePartnerMood } from '@/hooks/useRealtime';
 
 /**
  * Günlük mod girişi (G2-8). Aynı gün tekrar girilirse üstüne yazılır —
@@ -33,6 +34,7 @@ export default function MoodEntryScreen() {
   const [selected, setSelected] = useState<MoodColor | null>(null);
   const [note, setNote] = useState('');
   const [partner, setPartner] = useState<Mood | null>(null);
+  const [userId, setUserId] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +50,7 @@ export default function MoodEntryScreen() {
           setNote(moods.mine.note ?? '');
         }
         setPartner(moods.partner);
+        setUserId(moods.userId);
       })
       .catch((err) => {
         if (isMounted) setError(err instanceof Error ? err.message : 'Modlar yüklenemedi.');
@@ -60,6 +63,16 @@ export default function MoodEntryScreen() {
       isMounted = false;
     };
   }, []);
+
+  // Partner ekran açıkken modunu girerse/değiştirirse kart anında güncellensin.
+  useRealtimePartnerMood(userId, (row) => {
+    setPartner({
+      userId: row.user_id,
+      color: row.color,
+      note: row.note,
+      date: row.date,
+    });
+  });
 
   async function handleSave() {
     if (!selected) return;
